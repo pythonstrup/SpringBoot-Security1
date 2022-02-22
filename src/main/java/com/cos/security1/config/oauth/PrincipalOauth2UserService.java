@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 
 import com.cos.security1.Repository.UserRepository;
 import com.cos.security1.config.auth.PrincipalDetails;
+import com.cos.security1.config.oauth.provider.FacebookUserInfo;
+import com.cos.security1.config.oauth.provider.GoogleUserInfo;
+import com.cos.security1.config.oauth.provider.OAuth2UserInfo;
 import com.cos.security1.model.User;
 
 @Service
@@ -34,11 +37,26 @@ public class PrincipalOauth2UserService extends DefaultOAuth2UserService {
 		// 순환 참조때문에 넣은 인코더
 		BCryptPasswordEncoder myEncoder = new BCryptPasswordEncoder();
 		
-		String provider = userRequest.getClientRegistration().getRegistrationId(); // google
-		String providerId = oauth2User.getAttribute("sub");
+		
+		//회원가입 강제로 진행
+		OAuth2UserInfo oAuth2UserInfo = null;
+		if (userRequest.getClientRegistration().getRegistrationId().equals("google")) {
+			System.out.println("구글 로그인 요청");
+			oAuth2UserInfo = new GoogleUserInfo(oauth2User.getAttributes());
+			
+		} else if (userRequest.getClientRegistration().getRegistrationId().equals("facebook")) {
+			System.out.println("페이스북 로그인 요청");
+			oAuth2UserInfo = new FacebookUserInfo(oauth2User.getAttributes());
+			
+		} else {
+			System.out.println("우리는 구글과 페이스북만 지원합니다.");
+		}
+		
+		String provider = oAuth2UserInfo.getProvider(); // google, facebook
+		String providerId = oAuth2UserInfo.getProviderId();
 		String username = provider+"_"+providerId;
 		String password = myEncoder.encode("겟인데어");
-		String email = oauth2User.getAttribute("email");
+		String email = oAuth2UserInfo.getEmail();
 		String role = "ROLE_USER";
 		
 		User userEntity = userRepository.findByUsername(username);
@@ -53,11 +71,12 @@ public class PrincipalOauth2UserService extends DefaultOAuth2UserService {
 					.provider(provider)
 					.providerId(providerId)
 					.build();
+			
+			userRepository.save(userEntity);
 		} else {
-			System.out.println("로그인을 이미 한 적이 있습니다.");
+			System.out.println("로그인을 이미 한 적이 있습니다. 회원가입이 되어있습니다.");
 		}
 		
-		// 회원가입 강제로 진행
 		return new PrincipalDetails(userEntity, oauth2User.getAttributes());
 	}
 }
